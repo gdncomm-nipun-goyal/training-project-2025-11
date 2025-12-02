@@ -5,6 +5,7 @@ import com.marketplace.product.dto.ProductResponse;
 import com.marketplace.product.entity.Product;
 import com.marketplace.product.exception.ProductNotFoundException;
 import com.marketplace.product.repository.ProductRepository;
+import com.marketplace.product.service.KafkaProducerService;
 import com.marketplace.product.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
+    private final KafkaProducerService kafkaProducerService;
 
     @Override
     @CachePut(value = "products", key = "#result.productId")
@@ -36,7 +38,9 @@ public class ProductServiceImpl implements ProductService {
         Product savedProduct = productRepository.save(product);
         log.info("Product created with productId: {}", savedProduct.getProductId());
 
-        return mapToResponse(savedProduct);
+        ProductResponse response = mapToResponse(savedProduct);
+        kafkaProducerService.publishProductCreated(response);
+        return response;
     }
 
     private String generateUniqueProductId() {
@@ -70,7 +74,9 @@ public class ProductServiceImpl implements ProductService {
         Product updatedProduct = productRepository.save(product);
         log.info("Product updated with productId: {}", updatedProduct.getProductId());
 
-        return mapToResponse(updatedProduct);
+        ProductResponse response = mapToResponse(updatedProduct);
+        kafkaProducerService.publishProductUpdated(response);
+        return response;
     }
 
     @Override
@@ -81,6 +87,8 @@ public class ProductServiceImpl implements ProductService {
         
         productRepository.delete(product);
         log.info("Product deleted with productId: {}", productId);
+        
+        kafkaProducerService.publishProductDeleted(productId);
     }
 
     private ProductResponse mapToResponse(Product product) {
